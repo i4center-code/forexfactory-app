@@ -1,0 +1,132 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../theme/app_theme.dart';
+import '../utils/fa_format.dart';
+
+class NewsScreen extends StatefulWidget {
+  const NewsScreen({super.key});
+  @override
+  State<NewsScreen> createState() => _NewsScreenState();
+}
+
+class _NewsScreenState extends State<NewsScreen> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await http.get(Uri.parse('https://forexfactoryiran.ir/api/public/news.php'));
+      if (res.statusCode != 200) throw Exception('status ${res.statusCode}');
+      final data = jsonDecode(utf8.decode(res.bodyBytes));
+      final list = data is Map ? data['news'] : null;
+      _items = list is List ? list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : [];
+    } catch (e) {
+      _error = 'خبر خوانده نشد';
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_error!),
+            const SizedBox(height: 12),
+            OutlinedButton(onPressed: _load, child: const Text('تلاش مجدد')),
+          ],
+        ),
+      );
+    }
+    if (_items.isEmpty) return const Center(child: Text('خبری موجود نیست'));
+    return RefreshIndicator(
+      color: p.primary,
+      onRefresh: _load,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+        itemCount: _items.length,
+        itemBuilder: (context, i) {
+          final n = _items[i];
+          final title = toFa((n['title'] ?? '').toString());
+          final excerpt = toFa((n['excerpt'] ?? '').toString());
+          final date = faDateTime(n['date']);
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppInk.line),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => _NewsDetail(item: n))),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, height: 1.5)),
+                    if (excerpt.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(excerpt, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppInk.muted, height: 1.7)),
+                    ],
+                    if (date.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(date, style: const TextStyle(fontSize: 11, color: AppInk.muted)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _NewsDetail extends StatelessWidget {
+  const _NewsDetail({required this.item});
+  final Map<String, dynamic> item;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = toFa((item['title'] ?? '').toString());
+    final body = toFa((item['content'] ?? item['body'] ?? item['excerpt'] ?? '').toString());
+    final date = faDateTime(item['date']);
+    return Scaffold(
+      appBar: AppBar(title: const Text('خبر')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, height: 1.6)),
+          if (date.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(date, style: const TextStyle(fontSize: 12, color: AppInk.muted)),
+          ],
+          const SizedBox(height: 16),
+          Text(body, style: const TextStyle(fontSize: 14, height: 1.9)),
+        ],
+      ),
+    );
+  }
+}
