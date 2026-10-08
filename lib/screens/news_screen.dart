@@ -151,7 +151,7 @@ class _NewsDetail extends StatelessWidget {
                   Text(date, style: const TextStyle(fontSize: 12, color: AppInk.muted)),
                 ],
                 const SizedBox(height: 12),
-                Divider(color: AppInk.line, height: 1),
+                const Divider(color: AppInk.line, height: 1),
                 const SizedBox(height: 14),
                 SelectableText(body.isEmpty ? 'متنی موجود نیست.' : body, style: const TextStyle(fontSize: 14, height: 1.9)),
               ],

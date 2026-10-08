@@ -1,0 +1,33 @@
+name: forexfactoryiran
+description: ForexFactory Iran - Flutter Web economic calendar, news, account and tickets.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  http: ^1.2.0
+  shared_preferences: ^2.2.3
+  uuid: ^4.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/branding/
+  fonts:
+    - family: IranYekan
+      fonts:
+        - asset: assets/fonts/IranYekan.ttf
+          weight: 400
+        - asset: assets/fonts/IranYekanBold.ttf
+          weight: 700

@@ -446,7 +446,7 @@ class _SalesSheetState extends State<_SalesSheet> {
             ],
           ),
         ),
-        Divider(height: 1, color: AppInk.line),
+        const Divider(height: 1, color: AppInk.line),
         Expanded(child: _tab == 0 ? _plans(st, p) : _keys(st, p)),
       ],
     );
