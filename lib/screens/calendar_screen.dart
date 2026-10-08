@@ -8,6 +8,7 @@ import '../widgets/api_scope.dart';
 import '../widgets/banner_slot.dart';
 import '../widgets/calendar_controls.dart';
 import '../widgets/event_tile.dart';
+import '../widgets/site_header.dart' show calendarSearchQuery;
 import '../widgets/state_views.dart';
 
 /// تقویم بدون تب تکرارشوندهٔ بالای جدول — انتخاب تقویم فقط در هدر است.
@@ -32,7 +33,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   void initState() {
     super.initState();
+    calendarSearchQuery.addListener(_onSearch);
     _load();
+  }
+
+  @override
+  void dispose() {
+    calendarSearchQuery.removeListener(_onSearch);
+    super.dispose();
+  }
+
+  void _onSearch() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -81,16 +93,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final p = context.pal;
     return Column(
       children: [
-        // سرصفحهٔ نام تقویم (فقط متن، بدون تب قابل‌کلیک)
+        // سرصفحهٔ نام تقویم (فقط متن، بدون آیکون و بدون تب قابل‌کلیک)
         Padding(
           padding: const EdgeInsets.fromLTRB(kTableMargin + 4, 12, kTableMargin + 4, 6),
-          child: Row(
-            children: [
-              Icon(kCalendarIcons[widget.type] ?? Icons.calendar_month, size: 18, color: p.primary),
-              const SizedBox(width: 6),
-              Text(kCalendarLabels[widget.type] ?? 'تقویم', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: p.primary)),
-            ],
-          ),
+          child: Text(kCalendarLabels[widget.type] ?? 'تقویم', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: p.primary)),
         ),
         Expanded(
           child: FutureBuilder<CalendarResult>(
@@ -101,8 +107,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
               final result = snap.data!;
               final days = _dayKeys(result.events);
               final selectedDay = _effectiveDay(days);
+              final q = calendarSearchQuery.value.toLowerCase();
               final events = result.events.where((e) {
                 if (_impactFilter != 'all' && e.impact.toLowerCase() != _impactFilter) return false;
+                if (q.isNotEmpty && !e.title.toLowerCase().contains(q) && !e.titleFa.toLowerCase().contains(q)) return false;
                 if (selectedDay == null) return true;
                 return TehranTime.dayKey(e.date) == selectedDay;
               }).toList()
@@ -146,7 +154,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
                     SliverToBoxAdapter(child: ImpactFilterBar(value: _impactFilter, onChanged: (v) => setState(() => _impactFilter = v))),
                     SliverPersistentHeader(pinned: true, delegate: ColumnsHeaderDelegate()),
-                    if (rows.isEmpty) const SliverToBoxAdapter(child: TableEmpty()) else SliverList(delegate: SliverChildListDelegate(rows)),
+                    if (rows.isEmpty) const SliverToBoxAdapter(child: TableEmpty(text: 'موردی نیست')) else SliverList(delegate: SliverChildListDelegate(rows)),
                     const SliverToBoxAdapter(child: TableFooter()),
                     const SliverToBoxAdapter(child: SizedBox(height: 4)),
                   ],

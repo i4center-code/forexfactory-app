@@ -6,13 +6,28 @@ import '../theme/app_theme.dart';
 import '../utils/fa_format.dart';
 import 'rate_bar.dart';
 
+/// فیلتر متنی رویدادهای تقویم فعال (توسط CalendarScreen خوانده می‌شود).
+final ValueNotifier<String> calendarSearchQuery = ValueNotifier<String>('');
+
+/// باز کردن لینک بیرونی در تب جدید — نسخهٔ وب (package:web)
+Future<void> openExternalUrl(String url) async {
+  try {
+    await _openTab(url);
+  } catch (_) {}
+}
+
+/// جای‌نما (غیر وب): کاری نمی‌کند.
+Future<void> _openTabStub() async {}
+
 /// هدر سایت (الهام از forexfactoryiran.ir) + نوار نرخ بهره زیر آن.
 ///
-/// - منو فقط: فارکس، کریپتو، فلزات، انرژی، بروکرها، اخبار، ورود
-/// - بدون همبرگر / سوییچ FA/EN / جستجوی غیرواکنش
-/// - دکمهٔ برگشت داخل هدر (وقتی صفحه‌ای روی بقیه باز شده باشد)
-/// - رنگ کل هدر و تب‌ها با تقویم فعال عوض می‌شود؛
-///   تب غیرفعال از همان خانوادهٔ رنگ صفحه است، نه آبی ثابت.
+/// - صاف و مستطیلی، بدون شیب/کلیپ — ارتفاع جمع‌وجور ~۴۸px
+/// - منو فقط: فارکس، کریپتو، فلزات، انرژی، بروکرها، اخبار
+///   (آیکون خطی ۱۶px سفید، دکمه ۳۲px، فاصله ۸px، در موبایل اسکرول افقی)
+/// - دکمه ورود/حساب: قرص سفید با متن سرمه‌ای و آیکون آدمک
+/// - ساعت تهران (فقط ساعت:دقیقه) در قرص شیشه‌ای کنار ورود
+/// - دکمه جستجو: فیلد باز می‌شود و عنوان رویدادهای همان تقویم فیلتر می‌شود
+/// - رنگ کل هدر با تقویم فعال عوض می‌شود؛ تب غیرفعال هم‌خانوادهٔ همان تم
 class SiteHeader extends StatefulWidget {
   const SiteHeader({
     super.key,
@@ -23,7 +38,7 @@ class SiteHeader extends StatefulWidget {
     this.backLabel,
   });
 
-  /// forex | crypto | metals | energy | brokers | news | account | login | ticket | charge ...
+  /// forex | crypto | metals | energy | brokers | news | account | login | ticket ...
   final String section;
   final ValueChanged<String> onSection;
   final bool showBack;
@@ -37,14 +52,16 @@ class SiteHeader extends StatefulWidget {
 class _SiteHeaderState extends State<SiteHeader> {
   Timer? _timer;
   String _clock = '--:--';
+  bool _searchOpen = false;
+  final TextEditingController _searchCtrl = TextEditingController();
 
   static const items = <_NavItem>[
-    _NavItem('forex', 'فارکس', Icons.candlestick_chart_outlined),
-    _NavItem('crypto', 'کریپتو', Icons.currency_bitcoin_rounded),
-    _NavItem('metals', 'فلزات', Icons.diamond_outlined),
-    _NavItem('energy', 'انرژی', Icons.bolt_rounded),
-    _NavItem('brokers', 'بروکرها', Icons.business_center_outlined),
-    _NavItem('news', 'اخبار', Icons.newspaper_outlined),
+    _NavItem('forex', 'فارکس', Icons.bar_chart_rounded),
+    _NavItem('crypto', 'کریپتو', Icons.monetization_on_outlined),
+    _NavItem('metals', 'فلزات', Icons.horizontal_split_rounded),
+    _NavItem('energy', 'انرژی', Icons.local_fire_department_outlined),
+    _NavItem('brokers', 'بروکرها', Icons.account_balance_outlined),
+    _NavItem('news', 'اخبار', Icons.article_outlined),
   ];
 
   @override
@@ -59,6 +76,7 @@ class _SiteHeaderState extends State<SiteHeader> {
   void dispose() {
     activeCalendar.removeListener(_onCal);
     _timer?.cancel();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -73,24 +91,42 @@ class _SiteHeaderState extends State<SiteHeader> {
     if (mounted) setState(() => _clock = toFa('$hh:$mm', decimal: false));
   }
 
+  void _toggleSearch() {
+    setState(() => _searchOpen = !_searchOpen);
+    if (!_searchOpen) {
+      _searchCtrl.clear();
+      calendarSearchQuery.value = '';
+    }
+  }
+
+  void _go(String key) {
+    if (const {'forex', 'crypto', 'metals', 'energy'}.contains(key)) {
+      activeCalendar.value = key;
+      appThemeKey.value = key;
+    }
+    widget.onSection(key);
+  }
+
   @override
   Widget build(BuildContext context) {
     final cal = activeCalendar.value;
     final p = paletteOf(cal);
-    final wide = MediaQuery.sizeOf(context).width >= 900;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // هدر — رنگ از تم تقویم فعال (حتی تب‌های غیرفعال)
+          // هدر صاف — رنگ از تم تقویم فعال
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [p.secondary, p.primary]),
-              border: Border(bottom: BorderSide(color: p.accent, width: 4)),
+            color: p.primary,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 48, child: _bar(p)),
+                if (_searchOpen) _searchField(p),
+              ],
             ),
-            child: wide ? _desktop(p) : _phone(p),
           ),
           // نوار نرخ بهره — همان جای خالی زیر هدر
           const RateBar(),
@@ -99,88 +135,52 @@ class _SiteHeaderState extends State<SiteHeader> {
     );
   }
 
-  Widget _desktop(AppPalette p) {
-    return SizedBox(
-      height: 66,
-      child: Stack(
+  Widget _bar(AppPalette p) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
         children: [
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsetsDirectional.only(start: 236),
+          if (widget.showBack) _backBtn(p),
+          Flexible(flex: 3, child: _brandRow(p)),
+          const SizedBox(width: 8),
+          // منو — در موبایل جمع می‌شود (اسکرول افقی، بیرون نمی‌زند)
+          Expanded(
+            flex: 6,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  Expanded(child: _tabs(p)),
-                  _tools(p),
+                  for (final it in items)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: _Tab(
+                        label: it.label,
+                        icon: it.icon,
+                        selected: widget.section == it.key,
+                        palette: p,
+                        onTap: () => _go(it.key),
+                      ),
+                    ),
                 ],
               ),
             ),
           ),
-          PositionedDirectional(top: 0, start: 0, child: _slab(p)),
+          _iconBtn(p, Icons.search_rounded, _toggleSearch, active: _searchOpen),
+          _clockChip(p),
+          const SizedBox(width: 6),
+          _loginChip(p),
         ],
       ),
-    );
-  }
-
-  Widget _phone(AppPalette p) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              if (widget.showBack) _backBtn(p),
-              Expanded(child: _brandRow(p)),
-              const SizedBox(width: 6),
-              _clockChip(p),
-              _loginChip(p),
-            ],
-          ),
-        ),
-        SizedBox(height: 42, child: _tabs(p)),
-      ],
     );
   }
 
   Widget _backBtn(AppPalette p) {
     return InkWell(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(9),
       onTap: widget.onBack ?? () => Navigator.of(context).maybePop(),
       child: Padding(
         padding: const EdgeInsets.all(6),
-        child: Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.white.withValues(alpha: 0.9)),
-      ),
-    );
-  }
-
-  Widget _slab(AppPalette p) {
-    return SizedBox(
-      width: 236,
-      height: 66,
-      child: Stack(
-        children: [
-          CustomPaint(size: const Size(236, 66), painter: _SlabPainter(p.secondary, p.primary, p.accent)),
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(14, 0, 32, 4),
-            child: Row(
-              children: [
-                if (widget.showBack) ...[
-                  InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: widget.onBack ?? () => Navigator.of(context).maybePop(),
-                    child: Padding(
-                      padding: const EdgeInsets.all(5),
-                      child: Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.white.withValues(alpha: 0.92)),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Expanded(child: _brandRow(p)),
-              ],
-            ),
-          ),
-        ],
+        child: Icon(Icons.arrow_forward_ios_rounded, size: 15, color: Colors.white.withValues(alpha: 0.9)),
       ),
     );
   }
@@ -196,15 +196,15 @@ class _SiteHeaderState extends State<SiteHeader> {
     final logo = 'assets/branding/$type-logo.png';
     return Row(
       children: [
-        Image.asset(logo, height: 34, errorBuilder: (_, __, ___) => Image.asset('assets/branding/forex-logo.png', height: 34)),
-        const SizedBox(width: 8),
+        Image.asset(logo, height: 26, errorBuilder: (_, __, ___) => Image.asset('assets/branding/forex-logo.png', height: 26)),
+        const SizedBox(width: 7),
         Expanded(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('فارکس فکتوری ایران', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w700, height: 1.2)),
-              Text(widget.backLabel ?? sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFF7F7F7), fontSize: 10, height: 1.2)),
+              const Text('فارکس فکتوری ایران', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.2)),
+              Text(widget.backLabel ?? sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 10, height: 1.2)),
             ],
           ),
         ),
@@ -212,53 +212,71 @@ class _SiteHeaderState extends State<SiteHeader> {
     );
   }
 
-  Widget _tabs(AppPalette p) {
-    return ListView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsetsDirectional.only(start: 6),
-      children: [
-        for (final it in items)
-          _Tab(
-            label: it.label,
-            icon: it.icon,
-            selected: widget.section == it.key,
-            palette: p,
-            onTap: () {
-              if (it.isCalendar) {
-                activeCalendar.value = it.key;
-                appThemeKey.value = it.key;
-              }
-              widget.onSection(it.key);
-            },
+  Widget _searchField(AppPalette p) {
+    return Container(
+      color: p.primary,
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+      child: TextField(
+        controller: _searchCtrl,
+        autofocus: true,
+        onChanged: (v) => calendarSearchQuery.value = v.trim(),
+        style: const TextStyle(color: Colors.white, fontSize: 13),
+        decoration: InputDecoration(
+          hintText: 'جستجو در رویدادهای همین تقویم…',
+          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12.5),
+          isDense: true,
+          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Colors.white70),
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.close_rounded, size: 16, color: Colors.white70),
+            onPressed: _toggleSearch,
           ),
-      ],
+          filled: true,
+          fillColor: Colors.white.withValues(alpha: 0.12),
+          contentPadding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: const BorderSide(color: Colors.white, width: 1.2)),
+        ),
+      ),
     );
   }
 
-  Widget _tools(AppPalette p) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _clockChip(p),
-        _loginChip(p),
-      ],
+  Widget _iconBtn(AppPalette p, IconData icon, VoidCallback onTap, {bool active = false}) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(9),
+      onTap: onTap,
+      child: Container(
+        height: 32,
+        width: 32,
+        margin: const EdgeInsets.only(left: 6),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? Colors.white.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        ),
+        child: Icon(icon, size: 16, color: Colors.white),
+      ),
     );
   }
 
   Widget _clockChip(AppPalette p) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      margin: const EdgeInsets.only(left: 6),
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.schedule, size: 13, color: Colors.white.withValues(alpha: 0.8)),
+          Icon(Icons.schedule, size: 13, color: Colors.white.withValues(alpha: 0.85)),
           const SizedBox(width: 4),
-          Text(_clock, textDirection: TextDirection.ltr, style: const TextStyle(color: Color(0xFFE3EBFB), fontSize: 12)),
+          Text(_clock, textDirection: TextDirection.ltr, style: const TextStyle(color: Color(0xFFEAF0FB), fontSize: 11.5)),
         ],
       ),
     );
@@ -266,27 +284,24 @@ class _SiteHeaderState extends State<SiteHeader> {
 
   Widget _loginChip(AppPalette p) {
     final onAccount = widget.section == 'account' || widget.section == 'login';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () => widget.onSection('account'),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: onAccount ? p.accent : Colors.white.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: onAccount ? p.accent : Colors.white.withValues(alpha: 0.25)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(onAccount ? Icons.person_rounded : Icons.person_outline_rounded, size: 15, color: Colors.white),
-              const SizedBox(width: 4),
-              Text(onAccount ? 'حساب' : 'ورود', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-            ],
-          ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => widget.onSection('account'),
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 11),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(onAccount ? Icons.person_rounded : Icons.person_outline_rounded, size: 15, color: const Color(0xFF1B346A)),
+            const SizedBox(width: 4),
+            Text(onAccount ? 'حساب' : 'ورود', style: const TextStyle(color: Color(0xFF1B346A), fontSize: 12, fontWeight: FontWeight.w800)),
+          ],
         ),
       ),
     );
@@ -301,6 +316,7 @@ class _NavItem {
   bool get isCalendar => const {'forex', 'crypto', 'metals', 'energy'}.contains(key);
 }
 
+/// دکمهٔ مستطیلی هدر — بدون شیب، ارتفاع ۳۲، فاصله ۸ از همسایه.
 class _Tab extends StatelessWidget {
   const _Tab({required this.label, required this.icon, required this.selected, required this.palette, required this.onTap});
   final String label;
@@ -312,72 +328,31 @@ class _Tab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // تب غیرفعال: همان خانوادهٔ رنگ صفحه (نه آبی ثابت فارکس)
-    final inactiveBg = Color.alphaBlend(palette.primary.withValues(alpha: 0.55), Colors.black.withValues(alpha: 0.35));
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(start: 2),
-      child: ClipPath(
-        clipper: _SkewClip(),
-        child: Material(
-          color: selected ? palette.accent : inactiveBg,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Icon(icon, size: 16, color: Colors.white),
-                  const SizedBox(width: 6),
-                  Text(label, style: TextStyle(color: selected ? Colors.white : Colors.white.withValues(alpha: 0.88), fontSize: 13, fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
-                ],
-              ),
-            ),
+    final inactiveBg = Colors.white.withValues(alpha: 0.10);
+    return Material(
+      color: selected ? palette.accent : Colors.transparent,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(9),
+            border: selected ? null : Border.all(color: Colors.white.withValues(alpha: 0.16)),
+            color: selected ? null : inactiveBg,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: Colors.white),
+              const SizedBox(width: 5),
+              Text(label, style: TextStyle(color: selected ? Colors.white : Colors.white.withValues(alpha: 0.9), fontSize: 12.5, fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
+            ],
           ),
         ),
       ),
     );
   }
-}
-
-class _SkewClip extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    const s = 14.0;
-    return Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width - s, 0)
-      ..lineTo(size.width, size.height)
-      ..lineTo(s, size.height)
-      ..close();
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-class _SlabPainter extends CustomPainter {
-  _SlabPainter(this.top, this.bottom, this.accent);
-  final Color top;
-  final Color bottom;
-  final Color accent;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(size.width, size.height)
-      ..lineTo(28, size.height)
-      ..close();
-    final paint = Paint()
-      ..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [top, bottom]).createShader(Offset.zero & size);
-    canvas.drawPath(path, paint);
-    final stroke = Paint()
-      ..color = accent
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4;
-    canvas.drawLine(const Offset(17, 40), Offset(size.width, size.height - 2), stroke);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SlabPainter oldDelegate) => oldDelegate.top != top || oldDelegate.bottom != bottom || oldDelegate.accent != accent;
 }
