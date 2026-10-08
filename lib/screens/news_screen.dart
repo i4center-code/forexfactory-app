@@ -5,6 +5,29 @@ import 'package:http/http.dart' as http;
 
 import '../theme/app_theme.dart';
 import '../utils/fa_format.dart';
+import '../widgets/site_header.dart';
+
+/// حذف تگ‌های HTML از متن خبر (news.php متن با برچسب می‌فرستد).
+String stripHtml(String s) {
+  var t = s.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n');
+  t = t.replaceAll(RegExp(r'</p\s*>', caseSensitive: false), '\n\n');
+  t = t.replaceAll(RegExp(r'<[^>]*>'), '');
+  t = t
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#039;', "'")
+      .replaceAll('&rsquo;', '’')
+      .replaceAll('&lsquo;', '‘')
+      .replaceAll('&mdash;', '—')
+      .replaceAll('&ndash;', '–')
+      .replaceAll('&hellip;', '…');
+  t = t.replaceAll(RegExp(r'[ \t\u00a0]+'), ' ');
+  t = t.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+  return t.trim();
+}
 
 class NewsScreen extends StatefulWidget {
   const NewsScreen({super.key});
@@ -66,9 +89,9 @@ class _NewsScreenState extends State<NewsScreen> {
         itemCount: _items.length,
         itemBuilder: (context, i) {
           final n = _items[i];
-          final title = toFa((n['title'] ?? '').toString());
-          final excerpt = toFa((n['excerpt'] ?? '').toString());
-          final date = faDateTime(n['date']);
+          final title = toFa(stripHtml((n['title'] ?? '').toString()));
+          final excerpt = toFa(stripHtml((n['excerpt'] ?? n['content'] ?? n['body'] ?? '').toString()));
+          final date = faDateTime(n['date'] ?? n['created_at'] ?? n['published_at']);
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
             decoration: BoxDecoration(
@@ -110,21 +133,30 @@ class _NewsDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = toFa((item['title'] ?? '').toString());
-    final body = toFa((item['content'] ?? item['body'] ?? item['excerpt'] ?? '').toString());
-    final date = faDateTime(item['date']);
+    final p = context.pal;
+    final title = toFa(stripHtml((item['title'] ?? '').toString()));
+    final body = toFa(stripHtml((item['content'] ?? item['body'] ?? item['excerpt'] ?? '').toString()));
+    final date = faDateTime(item['date'] ?? item['created_at'] ?? item['published_at']);
     return Scaffold(
-      appBar: AppBar(title: const Text('خبر')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, height: 1.6)),
-          if (date.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(date, style: const TextStyle(fontSize: 12, color: AppInk.muted)),
-          ],
-          const SizedBox(height: 16),
-          Text(body, style: const TextStyle(fontSize: 14, height: 1.9)),
+          SiteHeader(section: 'news', onSection: (_) => Navigator.of(context).maybePop(), showBack: true, backLabel: 'خبر'),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, height: 1.6, color: p.primary)),
+                if (date.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(date, style: const TextStyle(fontSize: 12, color: AppInk.muted)),
+                ],
+                const SizedBox(height: 12),
+                Divider(color: AppInk.line, height: 1),
+                const SizedBox(height: 14),
+                SelectableText(body.isEmpty ? 'متنی موجود نیست.' : body, style: const TextStyle(fontSize: 14, height: 1.9)),
+              ],
+            ),
+          ),
         ],
       ),
     );
