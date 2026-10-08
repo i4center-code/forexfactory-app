@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../api/endpoints.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 import '../utils/fa_format.dart';
@@ -111,16 +110,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
               final rows = <Widget>[];
               String? lastDay;
-              var i = 0;
-              for (final e of events) {
-                final key = TehranTime.dayKey(e.date);
-                if (key != lastDay) {
-                  lastDay = key;
-                  rows.add(DayHeaderRow(text: e.date == null ? 'بدون تاریخ' : (jdayFromKey(key)?.fullWithYear ?? key)));
-                  i = 0;
+              var rowIndex = 0;
+              for (final ev in events) {
+                final dayKey = TehranTime.dayKey(ev.date);
+                if (dayKey != lastDay) {
+                  lastDay = dayKey;
+                  rows.add(DayHeaderRow(text: ev.date == null ? 'بدون تاریخ' : (jdayFromKey(dayKey)?.fullWithYear ?? dayKey)));
+                  rowIndex = 0;
                 }
-                rows.add(EventTile(event: e, odd: i.isOdd));
-                i++;
+                rows.add(EventTile(event: ev, odd: rowIndex.isOdd));
+                rowIndex++;
               }
 
               return RefreshIndicator(
@@ -146,7 +145,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ),
                     ),
                     SliverToBoxAdapter(child: ImpactFilterBar(value: _impactFilter, onChanged: (v) => setState(() => _impactFilter = v))),
-                    const SliverPersistentHeader(pinned: true, delegate: ColumnsHeaderDelegate()),
+                    SliverPersistentHeader(pinned: true, delegate: ColumnsHeaderDelegate()),
                     if (rows.isEmpty) const SliverToBoxAdapter(child: TableEmpty()) else SliverList(delegate: SliverChildListDelegate(rows)),
                     const SliverToBoxAdapter(child: TableFooter()),
                     const SliverToBoxAdapter(child: SizedBox(height: 4)),

@@ -6,9 +6,8 @@ import 'package:http/http.dart' as http;
 import '../app_version.dart';
 import '../api/api_client.dart';
 import '../models/models.dart';
-import '../sales/format.dart';
+import '../sales/models.dart';
 import '../sales/sales_api.dart';
-import '../sales/sales_api.dart' show salesErrorText;
 import '../sales/sales_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/fa_format.dart';
@@ -25,6 +24,7 @@ class AccountPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final api = ApiScope.of(context);
     return Scaffold(
       body: Column(
         children: [
@@ -126,7 +126,7 @@ class _ProfileViewState extends State<_ProfileView> {
         final u = d.user;
         final shownName = u.name.isNotEmpty ? u.name : u.username;
         final initial = (shownName.isNotEmpty ? shownName : u.email).trim();
-        final activeSubs = d.subscriptions.where((m) => (m.status ?? '') == 'active').length;
+        final activeSubs = d.subscriptions.where((m) => m.status == 'active').length;
         return ListView(
           padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
           children: [
@@ -589,7 +589,7 @@ class _SalesSheetState extends State<_SalesSheet> {
           onPressed: (st.creatingKey || activeSubs.isEmpty) ? null : () => _createKey(st),
           icon: st.creatingKey
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.add_key_rounded, size: 19),
+              : const Icon(Icons.vpn_key_rounded, size: 19),
           label: Text(st.creatingKey ? '…' : 'ساخت کلید جدید'),
         ),
         const SizedBox(height: 14),
