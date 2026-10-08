@@ -2,23 +2,33 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../screens/account_screen.dart';
 import '../theme/app_theme.dart';
 import '../utils/fa_format.dart';
+import 'rate_bar.dart';
 
-/// هدر عین سایت: اسلب کج، تب‌های مورب، ساعت تهران، جستجو، ورود.
+/// هدر سایت (الهام از forexfactoryiran.ir) + نوار نرخ بهره زیر آن.
+///
+/// - منو فقط: فارکس، کریپتو، فلزات، انرژی، بروکرها، اخبار، ورود
+/// - بدون همبرگر / سوییچ FA/EN / جستجوی غیرواکنش
+/// - دکمهٔ برگشت داخل هدر (وقتی صفحه‌ای روی بقیه باز شده باشد)
+/// - رنگ کل هدر و تب‌ها با تقویم فعال عوض می‌شود؛
+///   تب غیرفعال از همان خانوادهٔ رنگ صفحه است، نه آبی ثابت.
 class SiteHeader extends StatefulWidget {
   const SiteHeader({
     super.key,
     required this.section,
     required this.onSection,
-    this.onMenu,
+    this.showBack = false,
+    this.onBack,
+    this.backLabel,
   });
 
-  /// forex | crypto | metals | energy | brokers | news
+  /// forex | crypto | metals | energy | brokers | news | account | login | ticket | charge ...
   final String section;
   final ValueChanged<String> onSection;
-  final VoidCallback? onMenu;
+  final bool showBack;
+  final VoidCallback? onBack;
+  final String? backLabel;
 
   @override
   State<SiteHeader> createState() => _SiteHeaderState();
@@ -28,17 +38,32 @@ class _SiteHeaderState extends State<SiteHeader> {
   Timer? _timer;
   String _clock = '--:--';
 
+  static const items = <_NavItem>[
+    _NavItem('forex', 'فارکس', Icons.candlestick_chart_outlined),
+    _NavItem('crypto', 'کریپتو', Icons.currency_bitcoin_rounded),
+    _NavItem('metals', 'فلزات', Icons.diamond_outlined),
+    _NavItem('energy', 'انرژی', Icons.bolt_rounded),
+    _NavItem('brokers', 'بروکرها', Icons.business_center_outlined),
+    _NavItem('news', 'اخبار', Icons.newspaper_outlined),
+  ];
+
   @override
   void initState() {
     super.initState();
+    activeCalendar.addListener(_onCal);
     WidgetsBinding.instance.addPostFrameCallback((_) => _tick());
     _timer = Timer.periodic(const Duration(seconds: 15), (_) => _tick());
   }
 
   @override
   void dispose() {
+    activeCalendar.removeListener(_onCal);
     _timer?.cancel();
     super.dispose();
+  }
+
+  void _onCal() {
+    if (mounted) setState(() {});
   }
 
   void _tick() {
@@ -55,9 +80,21 @@ class _SiteHeaderState extends State<SiteHeader> {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Material(
-        color: p.secondary,
-        child: wide ? _desktop(p) : _phone(p),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // هدر — رنگ از تم تقویم فعال (حتی تب‌های غیرفعال)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [p.secondary, p.primary]),
+              border: Border(bottom: BorderSide(color: p.accent, width: 4)),
+            ),
+            child: wide ? _desktop(p) : _phone(p),
+          ),
+          // نوار نرخ بهره — همان جای خالی زیر هدر
+          const RateBar(),
+        ],
       ),
     );
   }
@@ -69,18 +106,12 @@ class _SiteHeaderState extends State<SiteHeader> {
         children: [
           Positioned.fill(
             child: Padding(
-              padding: const EdgeInsetsDirectional.only(start: 222),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [p.secondary, p.primary]),
-                  border: Border(bottom: BorderSide(color: p.accent, width: 4)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(child: _tabs(p)),
-                    _tools(p),
-                  ],
-                ),
+              padding: const EdgeInsetsDirectional.only(start: 236),
+              child: Row(
+                children: [
+                  Expanded(child: _tabs(p)),
+                  _tools(p),
+                ],
               ),
             ),
           ),
@@ -96,20 +127,30 @@ class _SiteHeaderState extends State<SiteHeader> {
       children: [
         Container(
           height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [p.secondary, p.primary]),
-            border: Border(bottom: BorderSide(color: p.accent, width: 4)),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              if (widget.showBack) _backBtn(p),
+              Expanded(child: _brandRow(p)),
+              const SizedBox(width: 6),
+              _clockChip(p),
+              _loginChip(p),
+            ],
           ),
-          child: _brandRow(p),
         ),
-        Container(color: p.primary, height: 40, child: _tabs(p)),
-        Container(
-          height: 36,
-          color: Color.lerp(p.primary, Colors.black, 0.12),
-          child: _tools(p),
-        ),
+        SizedBox(height: 42, child: _tabs(p)),
       ],
+    );
+  }
+
+  Widget _backBtn(AppPalette p) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: widget.onBack ?? () => Navigator.of(context).maybePop(),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.white.withValues(alpha: 0.9)),
+      ),
     );
   }
 
@@ -120,7 +161,25 @@ class _SiteHeaderState extends State<SiteHeader> {
       child: Stack(
         children: [
           CustomPaint(size: const Size(236, 66), painter: _SlabPainter(p.secondary, p.primary, p.accent)),
-          Padding(padding: const EdgeInsetsDirectional.fromSTEB(14, 0, 32, 4), child: _brandRow(p)),
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(14, 0, 32, 4),
+            child: Row(
+              children: [
+                if (widget.showBack) ...[
+                  InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: widget.onBack ?? () => Navigator.of(context).maybePop(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.white.withValues(alpha: 0.92)),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Expanded(child: _brandRow(p)),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -134,7 +193,7 @@ class _SiteHeaderState extends State<SiteHeader> {
       'crypto' => 'تقویم کریپتو',
       _ => 'تقویم فارکس',
     };
-    final logo = 'assets/branding/${type == 'forex' ? 'forex' : type}-logo.png';
+    final logo = 'assets/branding/$type-logo.png';
     return Row(
       children: [
         Image.asset(logo, height: 34, errorBuilder: (_, __, ___) => Image.asset('assets/branding/forex-logo.png', height: 34)),
@@ -145,7 +204,7 @@ class _SiteHeaderState extends State<SiteHeader> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('فارکس فکتوری ایران', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w700, height: 1.2)),
-              Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFF7F7F7), fontSize: 10, height: 1.2)),
+              Text(widget.backLabel ?? sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFF7F7F7), fontSize: 10, height: 1.2)),
             ],
           ),
         ),
@@ -154,29 +213,22 @@ class _SiteHeaderState extends State<SiteHeader> {
   }
 
   Widget _tabs(AppPalette p) {
-    const items = [
-      ('forex', 'فارکس', Icons.candlestick_chart_outlined),
-      ('crypto', 'کریپتو', Icons.currency_bitcoin),
-      ('metals', 'فلزات', Icons.hexagon_outlined),
-      ('energy', 'انرژی', Icons.local_fire_department_outlined),
-      ('brokers', 'بروکرها', Icons.business_center_outlined),
-      ('news', 'اخبار', Icons.newspaper_outlined),
-    ];
     return ListView(
       scrollDirection: Axis.horizontal,
+      padding: const EdgeInsetsDirectional.only(start: 6),
       children: [
         for (final it in items)
           _Tab(
-            label: it.$2,
-            icon: it.$3,
-            selected: widget.section == it.$1,
-            accent: p.accent,
+            label: it.label,
+            icon: it.icon,
+            selected: widget.section == it.key,
+            palette: p,
             onTap: () {
-              if (it.$1 == 'forex' || it.$1 == 'crypto' || it.$1 == 'metals' || it.$1 == 'energy') {
-                activeCalendar.value = it.$1;
-                appThemeKey.value = it.$1;
+              if (it.isCalendar) {
+                activeCalendar.value = it.key;
+                appThemeKey.value = it.key;
               }
-              widget.onSection(it.$1);
+              widget.onSection(it.key);
             },
           ),
       ],
@@ -187,63 +239,95 @@ class _SiteHeaderState extends State<SiteHeader> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _tool(const Text('FA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12))),
-        _tool(Text(_clock, style: const TextStyle(color: Color(0xFFE3EBFB), fontSize: 13))),
-        _tool(const Icon(Icons.search, color: Color(0xFFE3EBFB), size: 16), onTap: () => widget.onSection('forex')),
-        if (widget.onMenu != null) _tool(const Icon(Icons.menu, color: Color(0xFFE3EBFB), size: 16), onTap: widget.onMenu),
-        _tool(const Icon(Icons.person_outline, color: Color(0xFFE3EBFB), size: 16), label: 'ورود', onTap: () => _openAccount(context)),
+        _clockChip(p),
+        _loginChip(p),
       ],
     );
   }
 
-  Widget _tool(Widget child, {String? label, VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(border: BorderDirectional(start: BorderSide(color: Color(0x1FFFFFFF)))),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            child,
-            if (label != null) ...[const SizedBox(width: 4), Text(label, style: const TextStyle(color: Color(0xFFE3EBFB), fontSize: 12))],
-          ],
-        ),
+  Widget _clockChip(AppPalette p) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.schedule, size: 13, color: Colors.white.withValues(alpha: 0.8)),
+          const SizedBox(width: 4),
+          Text(_clock, textDirection: TextDirection.ltr, style: const TextStyle(color: Color(0xFFE3EBFB), fontSize: 12)),
+        ],
       ),
     );
   }
 
-  void _openAccount(BuildContext context) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AccountScreen()));
+  Widget _loginChip(AppPalette p) {
+    final onAccount = widget.section == 'account' || widget.section == 'login';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => widget.onSection('account'),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: onAccount ? p.accent : Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: onAccount ? p.accent : Colors.white.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(onAccount ? Icons.person_rounded : Icons.person_outline_rounded, size: 15, color: Colors.white),
+              const SizedBox(width: 4),
+              Text(onAccount ? 'حساب' : 'ورود', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
+class _NavItem {
+  const _NavItem(this.key, this.label, this.icon);
+  final String key;
+  final String label;
+  final IconData icon;
+  bool get isCalendar => const {'forex', 'crypto', 'metals', 'energy'}.contains(key);
+}
+
 class _Tab extends StatelessWidget {
-  const _Tab({required this.label, required this.icon, required this.selected, required this.accent, required this.onTap});
+  const _Tab({required this.label, required this.icon, required this.selected, required this.palette, required this.onTap});
   final String label;
   final IconData icon;
   final bool selected;
-  final Color accent;
+  final AppPalette palette;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    // تب غیرفعال: همان خانوادهٔ رنگ صفحه (نه آبی ثابت فارکس)
+    final inactiveBg = Color.alphaBlend(palette.primary.withValues(alpha: 0.55), Colors.black.withValues(alpha: 0.35));
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: 2),
       child: ClipPath(
         clipper: _SkewClip(),
         child: Material(
-          color: selected ? accent : const Color(0xFF3D5B99),
+          color: selected ? palette.accent : inactiveBg,
           child: InkWell(
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
                   Icon(icon, size: 16, color: Colors.white),
                   const SizedBox(width: 6),
-                  Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                  Text(label, style: TextStyle(color: selected ? Colors.white : Colors.white.withValues(alpha: 0.88), fontSize: 13, fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
                 ],
               ),
             ),
